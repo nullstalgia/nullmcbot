@@ -6,6 +6,10 @@ config.py
 
 *.log
 
+# KDE Dolphin
+
+*.directory
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
