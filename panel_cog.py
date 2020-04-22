@@ -160,9 +160,12 @@ class panel_cog(commands.Cog):
 
     @commands.command()
     async def cmd(self, ctx, *, arg):
-        if self.server_power_status == "on":
-            if ctx.message.author.id in config_superadmin_users:
+        if ctx.message.author.id in config_superadmin_users:
+            if self.server_power_status == "on":
                 self.pclient.client.send_console_command(config_server_id, arg)
+                await ctx.message.add_reaction("👍")
+            else:
+                await ctx.message.add_reaction("❌")
 
     async def voting(self, ctx, motion):
         if self.current_vote_action is None:
