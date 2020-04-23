@@ -39,7 +39,8 @@ async def help(ctx):
     embed.add_field(name="start", value="(aliases: server\_on, on, turn\_on)\nWill start the server immediately after vote passes", inline=False)
     embed.add_field(name="status", value="Check and return the current (last known) status of the server.\nAlso shows currently connected players", inline=False)
     embed.add_field(name="How voting works", value="When someone types in a command (e.g. `{0}restart` or `{0}on`), it will start a vote for **{1}** seconds. If in that time a total of **{2}** people type the same command, it will do that action!".format(config_command_prefix, config_vote_timeout, config_votes_needed), inline=False)
-    embed.add_field(name="Auto shutdown", value="This bot checks every so often to see if the server is empty. If it is, it will be automatically shut down.", inline=False)
+    if config_shutdown_empty_server:
+        embed.add_field(name="Auto shutdown", value="This bot checks every so often to see if the server is empty. If it is, it will be automatically shut down.", inline=False)
     embed.set_footer(text="config")
     await ctx.send(embed=embed)
 
@@ -50,33 +51,45 @@ async def status(ctx):
     embed = discord.Embed(title="Server Status", color=config_embed_color)
     mcstatus_info = bot.get_cog("mcstatus_cog")
     panel_info = bot.get_cog("panel_cog")
-    current_status = "offline"
-    file = None
-    if mcstatus_info is not None:
-        current_status = mcstatus_info.server_power_status
-    if current_status == "online":
-        if panel_info.server_power_status == "on":
-            cpu, ram = await panel_info.get_cpu_and_ram()
-            cpu = "{0}%".format(cpu)
-            ram = "{0}MB".format(ram)
-            embed.add_field(name="CPU", value=cpu, inline=True)
-            embed.add_field(name="RAM", value=ram, inline=True)
+    current_status = await get_status()
+    # Default icon in case no other image is set
+    filepath = "{0}/images/owo.png".format(dirname(realpath(__file__)))
+    file = discord.File(filepath, "icon.png")
+    if mcstatus_info is not None and panel_info is not None:
+        if current_status == "online":
+            if panel_info.server_power_status == "online":
+                cpu, ram = await panel_info.get_cpu_and_ram()
+                cpu = "{0}%".format(cpu)
+                ram = "{0}MB".format(ram)
+                embed.add_field(name="CPU", value=cpu, inline=True)
+                embed.add_field(name="RAM", value=ram, inline=True)
+            if mcstatus_info.server_power_status == "online":
+                fake_file = BytesIO(mcstatus_info.decoded_favicon)
+                file = discord.File(fake_file, "icon.png")
+                current, max = await mcstatus_info.get_players_and_max()
+                full_value = "{0}/{1} Players".format(current, max)
+                if current > 0:
+                    full_value += "\n-----"
+                    for player in mcstatus_info.server_status.players.sample:
+                        full_value += "\n{0}".format(player.name)
+                embed.add_field(name="Players", value=full_value, inline=False)
         else:
-            embed.add_field(name="Error!", value="Can't talk to panel!", inline=False)
-        current, max = await mcstatus_info.get_players_and_max()
-        full_value = "{0}/{1} Players".format(current, max)
-        if current > 0:
-            full_value += "\n-----"
-            for player in mcstatus_info.server_status.players.sample:
-                full_value += "\n{0}".format(player.name)
-        embed.add_field(name="Players", value=full_value, inline=False)
-        fake_file = BytesIO(mcstatus_info.decoded_favicon)
-        file = discord.File(fake_file, "icon.png")
+            if current_status == "starting":
+                embed.add_field(name="Server Starting", value="Please wait while the server boots.", inline=False)
+            elif current_status == "stopping":
+                embed.add_field(name="Server Stopping", value="Please wait while the server shuts down.", inline=False)
+                filepath = "{0}/images/uwu.png".format(dirname(realpath(__file__)))
+                file = discord.File(filepath, "icon.png")
+            else:
+                filepath = "{0}/images/sad.png".format(dirname(realpath(__file__)))
+                file = discord.File(filepath, "icon.png")
+                example_command = "You can type `{0}on` (or its aliases) to start the server yourself!".format(config_command_prefix)
+                embed.add_field(name="Server Offline", value=example_command, inline=False)
     else:
+        logger.error("Either MCStatus or Panel cog was unable to talk!")
+        embed.add_field(name="Internal Bot Error!", value="Can't talk to panel?", inline=False)
         filepath = "{0}/images/sad.png".format(dirname(realpath(__file__)))
         file = discord.File(filepath, "icon.png")
-        example_command = "You can type `{0}on` (or its aliases) to start the server yourself!".format(config_command_prefix)
-        embed.add_field(name="Server Offline", value=example_command, inline=False)
     
     embed.set_thumbnail(url="attachment://icon.png")
     embed.set_footer(
@@ -85,6 +98,17 @@ async def status(ctx):
 
     response = await ctx.send(file=file, embed=embed)
     #await bot.change_presence(activity=discord.Game("hi"), status=discord.Status.dnd)
+
+async def get_status():
+    mcstatus_info = bot.get_cog("mcstatus_cog")
+    panel_info = bot.get_cog("panel_cog")
+    if mcstatus_cog is not None and panel_cog is not None:
+        if mcstatus_info.server_power_status != "online":
+            acceptable_panel_statuses = ["offline", "online", "starting", "stopping", "error"]
+            if panel_info.server_power_status in acceptable_panel_statuses:
+                return panel_info.server_power_status
+        else:
+            return "online"
 
 
 #status = server.status()
@@ -100,7 +124,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     filepath = "{0}/bot.log".format(dirname(realpath(__file__)))
     file_handler = logging.FileHandler(filepath)
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
     log_formatter = logging.Formatter(
@@ -110,6 +134,6 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
-    bot.add_cog(mcstatus_cog(bot))
+    bot.add_cog(mcstatus_cog(bot, get_status))
     bot.add_cog(panel_cog(bot))
     bot.run(config_discord_token)

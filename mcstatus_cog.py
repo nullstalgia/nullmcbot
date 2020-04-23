@@ -8,9 +8,9 @@ from io import BytesIO
 
 
 class mcstatus_cog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, get_status):
         self.bot = bot
-        self.server_power_status = "unknown"
+        self.get_status = get_status
         self.logger = logging.getLogger("tonymc.mcstatus_cog")
         self.mc_server = MinecraftServer(config_ip, config_port)
         self.server_status = None
@@ -42,23 +42,30 @@ class mcstatus_cog(commands.Cog):
         await self.change_discord_status()
 
     @periodically_get_status.before_loop
-    async def before_printer(self):
+    async def before_status(self):
         self.logger.debug("Waiting for bot to be ready... (Server Status)")
         await self.bot.wait_until_ready()
 
     async def change_discord_status(self):
         game = None
         status = None
-        if self.server_power_status == "offline":
+        server_status = await self.get_status()
+        if server_status == "offline":
             game = discord.Game("Server Offline")
             status = discord.Status.dnd
-        elif self.server_power_status == "online":
+        elif server_status == "online":
             current, max = await self.get_players_and_max()
             game = discord.Game("{0}/{1} Players".format(current, max))
             if current == 0:
                 status = discord.Status.idle
             else:
                 status = discord.Status.online
+        elif server_status == "starting":
+            game = discord.Game("Server Starting")
+            status = discord.Status.idle
+        elif server_status == "stopping":
+            game = discord.Game("Server Stopping")
+            status = discord.Status.dnd
         else:
             game = discord.Game("Unknown Error")
             status = discord.Status.idle
