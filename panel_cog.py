@@ -21,6 +21,10 @@ class panel_cog(commands.Cog):
         self.voting_time_start = 0
         self.was_empty_last_check = False
         self.logger = logging.getLogger("tonymc.panel_cog")
+        self.periodically_get_status.add_exception_type(NewConnectionError)
+        self.periodically_get_status.add_exception_type(gaierror)
+        self.periodically_get_status.add_exception_type(ConnectionError)
+        self.periodically_get_status.add_exception_type(HTTPError)
         self.periodically_get_status.start()
         self.has_motion_expired.start()
         if config_shutdown_empty_server:
@@ -41,7 +45,7 @@ class panel_cog(commands.Cog):
 
     @tasks.loop(seconds=config_ping_time)
     async def periodically_get_status(self):
-        self.logger.debug("Getting server status (Panel)")
+        self.logger.debug("Getting panel status (Panel)")
         try:
             self.server_status = self.pclient.client.get_server_utilization(
                 config_server_id)
@@ -53,6 +57,8 @@ class panel_cog(commands.Cog):
             else:
                 self.server_power_status = self.server_status['state']
 
+            self.logger.debug("Panel status succesfully recieved")
+
         except (NewConnectionError, gaierror, ConnectionError):
             self.logger.error("Can't connect to panel! Bad URL?")
             self.server_power_status = "error"
@@ -61,7 +67,7 @@ class panel_cog(commands.Cog):
                 self.logger.error("Can't connect to panel! Bad API Key!")
             self.server_power_status = "error"
 
-        #self.logger.debug("Done with Panel for now.")
+        self.logger.debug("Done with Panel.")
 
     @periodically_get_status.before_loop
     async def before_status(self):

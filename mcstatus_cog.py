@@ -18,6 +18,8 @@ class mcstatus_cog(commands.Cog):
         # possible: offline, whitelist (prob not), online
         self.server_power_status = "offline"
         self.periodically_get_status.add_exception_type(ConnectionError)
+        self.periodically_get_status.add_exception_type(IOError)
+        self.periodically_get_status.add_exception_type(ValueError)
         self.periodically_get_status.start()
 
     @tasks.loop(seconds=config_ping_time)
@@ -25,9 +27,9 @@ class mcstatus_cog(commands.Cog):
         self.logger.debug("Starting to get server status (MCStatus)")
         try:
             self.server_status = self.mc_server.status()
-        except ConnectionError as identifier:
+        except (ConnectionError, IOError, ValueError):
             self.logger.debug(
-                "Server was not on - Or at least some kind of connection issue")
+                "Server was not on - Or at least some kind of connection issue...")
             self.server_power_status = "offline"
         else:
             self.logger.debug("Server was on! Populating variables.")
@@ -69,9 +71,9 @@ class mcstatus_cog(commands.Cog):
         else:
             game = discord.Game("Unknown Error")
             status = discord.Status.idle
-        self.logger.debug(
-            "Changing presence to: {0}, {1}".format(game, status))
         await self.bot.change_presence(status=status, activity=game)
+        self.logger.debug(
+            "Changed presence to: {0}, {1}".format(game, status))
 
     async def get_players_and_max(self):
         if self.server_power_status == "online":
