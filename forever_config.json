@@ -1,0 +1,15 @@
+{
+    // Comments are supported
+    "uid": "tonymc",
+    "append": true,
+    "watch": false,
+    "command": "/home/tony/discord/tonymc/bin/python3",
+    "script": "main.py",
+    "sourceDir": "/home/tony/discord/tonymc/",
+    "logFile": "/home/tony/discord/tonymc/logs/forever.log",
+    "outFile": "/home/tony/discord/tonymc/logs/out.log",
+    "errFile": "/home/tony/discord/tonymc/logs/error.log",
+    "killSignal": "SIGTERM",
+    "spinSleepTime": 45000,
+    "minUptime": 30000
+}
