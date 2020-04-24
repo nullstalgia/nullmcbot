@@ -8,7 +8,9 @@ from socket import gaierror
 from requests.exceptions import ConnectionError, HTTPError
 from time import time
 from os.path import dirname, realpath
-
+import asyncio
+import concurrent.futures
+import functools
 
 class panel_cog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -47,8 +49,9 @@ class panel_cog(commands.Cog):
     async def periodically_get_status(self):
         self.logger.debug("Getting panel status (Panel)")
         try:
-            self.server_status = self.pclient.client.get_server_utilization(
-                config_server_id)
+            loop = asyncio.get_running_loop()
+            fn = functools.partial(self.pclient.client.get_server_utilization, config_server_id)
+            self.server_status = await loop.run_in_executor(None, fn)
 
             if self.server_status['state'] == "on":
                 self.server_power_status = "online"

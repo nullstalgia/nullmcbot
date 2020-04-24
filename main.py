@@ -7,6 +7,15 @@ import random
 from panel_cog import panel_cog
 from mcstatus_cog import mcstatus_cog
 import logging
+import asyncio
+import logging.handlers
+# https://www.zopatista.com/python/2019/05/11/asyncio-logging/
+try:
+    # Python 3.7 and newer, fast reentrant implementation
+    # without task tracking (not needed for that when logging)
+    from queue import SimpleQueue as Queue
+except ImportError:
+    from queue import Queue
 from io import BytesIO
 from config import *
 from os.path import dirname, realpath
@@ -22,8 +31,8 @@ bot = commands.Bot(command_prefix=config_command_prefix,
 # https://discordpy.readthedocs.io/en/latest/ext/commands/api.html#discord.ext.commands.when_mentioned_or
 
 bot.remove_command('help')
-logger = logging.getLogger("tonymc")
-
+logger = None
+#discord_logger = logging.getLogger("discord")
 
 @bot.event
 async def on_ready():
@@ -109,6 +118,9 @@ async def get_status():
                 return panel_info.server_power_status
         else:
             return "online"
+    else:
+        return "error"
+        logger.error("Cogs not responding when getting status")
 
 
 #status = server.status()
@@ -117,10 +129,44 @@ async def get_status():
 #print("The server has {0} players and replied in {1} ms".format(status.players, status.latency))
 # print(pclient.client.list_servers())
 
+class LocalQueueHandler(logging.handlers.QueueHandler):
+    def emit(self, record: logging.LogRecord) -> None:
+        # Removed the call to self.prepare(), handle task cancellation
+        try:
+            self.enqueue(record)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.handleError(record)
 
+def setup_logging_queue() -> None:
+    """Move log handlers to a separate thread.
+
+    Replace handlers on the root logger with a LocalQueueHandler,
+    and start a logging.QueueListener holding the original
+    handlers.
+
+    """
+    queue = Queue()
+    
+
+    handlers: List[logging.Handler] = []
+
+    handler = LocalQueueHandler(queue)
+    logger.addHandler(handler)
+    for h in logger.handlers[:]:
+        if h is not handler:
+            logger.removeHandler(h)
+            handlers.append(h)
+
+    listener = logging.handlers.QueueListener(
+        queue, *handlers, respect_handler_level=True
+    )
+    listener.start()
 
 if __name__ == "__main__":
     # Configuring logging
+    logger = logging.getLogger("tonymc")
     logger.setLevel(logging.DEBUG)
     filepath = "{0}/bot.log".format(dirname(realpath(__file__)))
     file_handler = logging.FileHandler(filepath)
@@ -133,6 +179,11 @@ if __name__ == "__main__":
     console_handler.setFormatter(log_formatter)
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)
+    setup_logging_queue()
+    #discord_logger.setLevel(logging.DEBUG)
+    #discord_handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+    #discord_handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    #discord_logger.addHandler(discord_handler)
 
     bot.add_cog(mcstatus_cog(bot, get_status))
     bot.add_cog(panel_cog(bot))

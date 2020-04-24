@@ -1,11 +1,12 @@
 import discord
+import asyncio
 from discord.ext import tasks, commands
 from config import *
 import logging
 from mcstatus import MinecraftServer
 import base64
 from io import BytesIO
-
+import concurrent.futures
 
 class mcstatus_cog(commands.Cog):
     def __init__(self, bot: commands.Bot, get_status):
@@ -21,12 +22,28 @@ class mcstatus_cog(commands.Cog):
         self.periodically_get_status.add_exception_type(IOError)
         self.periodically_get_status.add_exception_type(ValueError)
         self.periodically_get_status.start()
+        self.did_status_crash.start()
+
+    @tasks.loop()
+    async def did_status_crash(self):
+        await asyncio.sleep(15)
+        if not self.periodically_get_status.is_running():
+            self.logger.error("Status updater not running!")
+            if self.periodically_get_status.failed():
+                self.logger.error("Status updater failed!")
+
+    @did_status_crash.before_loop
+    async def before_crash(self):
+        self.logger.debug("Waiting for bot to be ready... (Status Watcher)")
+
 
     @tasks.loop(seconds=config_ping_time)
     async def periodically_get_status(self):
         self.logger.debug("Starting to get server status (MCStatus)")
         try:
-            self.server_status = self.mc_server.status()
+            loop = asyncio.get_running_loop()
+            self.server_status = await loop.run_in_executor(
+                    None, self.mc_server.status)
         except (ConnectionError, IOError, ValueError):
             self.logger.debug(
                 "Server was not on - Or at least some kind of connection issue...")
@@ -41,6 +58,7 @@ class mcstatus_cog(commands.Cog):
             base_favicon = base_favicon.replace("data:image/png;base64,", "")
             self.decoded_favicon = base64.b64decode(base_favicon)
             self.server_power_status = "online"
+        self.logger.debug("Updating presence")
         await self.change_discord_status()
 
     @periodically_get_status.before_loop
@@ -71,9 +89,13 @@ class mcstatus_cog(commands.Cog):
         else:
             game = discord.Game("Unknown Error")
             status = discord.Status.idle
-        await self.bot.change_presence(status=status, activity=game)
-        self.logger.debug(
-            "Changed presence to: {0}, {1}".format(game, status))
+        try:
+            await self.bot.change_presence(status=status, activity=game)
+            self.logger.debug(
+                "Changed presence to: {0}, {1}".format(game, status))
+        except TypeError:
+            self.logger.debug(
+                "TypeError when changing presence")
 
     async def get_players_and_max(self):
         if self.server_power_status == "online":
