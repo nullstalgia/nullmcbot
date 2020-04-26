@@ -45,13 +45,16 @@ class panel_cog(commands.Cog):
         self.logger.debug("Waiting for bot to be ready... (Motion Expiration)")
         await self.bot.wait_until_ready()
 
+    async def block_to_async(self, partial: functools.partial):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, partial)
+
     @tasks.loop(seconds=config_ping_time)
     async def periodically_get_status(self):
         self.logger.debug("Getting panel status (Panel)")
         try:
-            loop = asyncio.get_running_loop()
             fn = functools.partial(self.pclient.client.get_server_utilization, config_server_id)
-            self.server_status = await loop.run_in_executor(None, fn)
+            self.server_status = await self.block_to_async(fn)
 
             if self.server_status['state'] == "on":
                 self.server_power_status = "online"
@@ -182,13 +185,15 @@ class panel_cog(commands.Cog):
             self.server_power_status = "stopping"
         elif action == "restart":
             self.server_power_status = "offline"
-        self.pclient.client.send_power_action(config_server_id, action)
+        fn = functools.partial(self.pclient.client.send_power_action, config_server_id, action)
+        await self.block_to_async(fn)
 
     @commands.command()
     async def cmd(self, ctx, *, arg):
         if ctx.message.author.id in config_superadmin_users:
             if self.server_power_status == "online":
-                self.pclient.client.send_console_command(config_server_id, arg)
+                fn = functools.partial(self.pclient.client.send_console_command, config_server_id, arg)
+                await self.block_to_async(fn)
                 await ctx.message.add_reaction("👍")
             else:
                 await ctx.message.add_reaction("❌")
