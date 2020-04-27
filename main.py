@@ -39,6 +39,12 @@ async def on_ready():
     logger.info("Logged in as {0} with ID: {1}".format(
         bot.user.name, bot.user.id))
 
+@bot.event
+async def on_message(message: discord.Message):
+    # Make sure it only works in your guild(s) in case someone adds the bot themselves to another guild
+    if message.guild.id in config_allowed_guilds:
+        await bot.process_commands(message)
+
 @bot.command()
 async def help(ctx):
     embed = embed = discord.Embed(title="Bot Help", color=config_embed_color)

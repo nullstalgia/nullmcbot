@@ -16,3 +16,4 @@ config_votes_needed = 2
 config_vote_timeout = 60
 config_server_auto_time = 10
 config_shutdown_empty_server = True
+config_allowed_guilds = [789456]
