@@ -66,10 +66,13 @@ class mcstatus_cog(commands.Cog):
         self.logger.debug("Waiting for bot to be ready... (Server Status)")
         await self.bot.wait_until_ready()
 
-    async def change_discord_status(self):
+    async def change_discord_status(self, given_status=None):
         game = None
         status = None
-        server_status = await self.get_status()
+        if given_status is None:
+            server_status = await self.get_status()
+        else:
+            server_status = given_status
         if server_status == "offline":
             game = discord.Game("Server Offline")
             status = discord.Status.dnd

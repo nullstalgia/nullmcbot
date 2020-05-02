@@ -180,13 +180,24 @@ class panel_cog(commands.Cog):
 
     async def power_action(self, action):
         if action == "start":
-            self.server_power_status = "starting"
+            if self.server_power_status == "offline":
+                self.server_power_status = "starting"
         elif action == "stop":
-            self.server_power_status = "stopping"
+            if self.server_power_status == "online":
+                self.server_power_status = "stopping"
         elif action == "restart":
-            self.server_power_status = "offline"
+            if self.server_power_status == "offline":
+                self.server_power_status = "starting"
+            if self.server_power_status == "online":
+                self.server_power_status = "stopping"
         fn = functools.partial(self.pclient.client.send_power_action, config_server_id, action)
         await self.block_to_async(fn)
+        mcstatus_info = self.bot.get_cog("mcstatus_cog")
+        if mcstatus_info is not None:
+            await mcstatus_info.change_discord_status(self.server_power_status)
+        else:
+            self.logger.error("Unable to get MCStatus cog in power_action")
+
 
     @commands.command()
     async def cmd(self, ctx, *, arg):

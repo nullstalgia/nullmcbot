@@ -118,12 +118,12 @@ async def get_status():
     mcstatus_info = bot.get_cog("mcstatus_cog")
     panel_info = bot.get_cog("panel_cog")
     if mcstatus_cog is not None and panel_cog is not None:
-        if mcstatus_info.server_power_status != "online":
+        if mcstatus_info.server_power_status == "online":
+            return "online"
+        else:
             acceptable_panel_statuses = ["offline", "online", "starting", "stopping", "error"]
             if panel_info.server_power_status in acceptable_panel_statuses:
                 return panel_info.server_power_status
-        else:
-            return "online"
     else:
         return "error"
         logger.error("Cogs not responding when getting status")
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     logger.setLevel(logging.DEBUG)
     filepath = "{0}/bot.log".format(dirname(realpath(__file__)))
     file_handler = logging.FileHandler(filepath)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
     log_formatter = logging.Formatter(
