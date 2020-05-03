@@ -127,7 +127,6 @@ class panel_cog(commands.Cog):
                 await ctx.message.add_reaction("👍")
             else:
                 if await self.voting(ctx, "stop"):
-                    self.logger.info("Motion Passed: stop")
                     await self.power_action("stop")
 
     @commands.group(aliases=["on", "turn_on", "start", "boot"])
@@ -141,7 +140,6 @@ class panel_cog(commands.Cog):
                 await ctx.message.add_reaction("👍")
             else:
                 if await self.voting(ctx, "start"):
-                    self.logger.info("Motion Passed: start")
                     await self.power_action("start")
 
     @server_off.command()
@@ -175,7 +173,6 @@ class panel_cog(commands.Cog):
             await ctx.message.add_reaction("👍")
         else:
             if await self.voting(ctx, "restart"):
-                self.logger.info("Motion Passed: restart")
                 await self.power_action("restart")
 
     async def power_action(self, action):
@@ -209,14 +206,32 @@ class panel_cog(commands.Cog):
             else:
                 await ctx.message.add_reaction("❌")
 
+    async def vote_passed(self, ctx, motion):
+        voters_string = ""
+        count = 0
+        num_of_voters = len(self.voters)
+        for voter in self.voters:
+            count += 1
+            voter_object = self.bot.get_user(voter)
+            if voter is not None:
+                voters_string += str(voter_object)
+            else:
+                voters_string += voter
+                self.logger.error("Wasn't able to get a user with ID who voted!")
+            if count < num_of_voters:
+                voters_string += ", "
+        
+        self.logger.info("Motion Passed: {0} - Voters: {1}".format(motion, voters_string))
+        await ctx.send('Motion "{0}" passed!'.format(motion))
+        await self.clear_voting()
+
     async def voting(self, ctx, motion):
         if self.current_vote_action is None:
             self.voting_time_start = time()
             self.current_vote_action = motion
             self.voters.append(ctx.message.author.id)
             if config_votes_needed <= 1:
-                await ctx.send('Motion "{0}" passed!'.format(motion))
-                await self.clear_voting()
+                await self.vote_passed(ctx, motion)
                 return True
             else:
                 await ctx.send('You need **{0}** more people to type the same command!'.format(config_votes_needed-len(self.voters)))
@@ -229,8 +244,7 @@ class panel_cog(commands.Cog):
                 if ctx.message.author.id not in self.voters:
                     self.voters.append(ctx.message.author.id)
                     if len(self.voters) >= config_votes_needed:
-                        await ctx.send('Motion "{0}" passed!'.format(motion))
-                        await self.clear_voting()
+                        await self.vote_passed(ctx, motion)
                         return True
                     else:
                         await ctx.send('You need **{0}** more people to type the same command!'.format(config_votes_needed-len(self.voters)))
