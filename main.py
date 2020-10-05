@@ -45,6 +45,29 @@ async def on_message(message: discord.Message):
     if message.guild.id in config_allowed_guilds:
         await bot.process_commands(message)
 
+@bot.event
+async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
+    if user.id != bot.user.id:
+        panel_info = bot.get_cog("panel_cog")
+        if panel_info is not None:
+            motion = panel_info.current_vote_action
+            if motion is not None:
+                if user.id in config_admin_users:
+                    logger.info("{0} reaction admin'd server: {1}.".format(str(user), motion))
+                    await panel_info.power_action(motion)
+                    await reaction.message.add_reaction("👌")
+                if user.id not in panel_info.voters:
+                    if reaction.message.id in panel_info.votable_messages:
+                        panel_info.voters.append(user.id)
+                        
+                        if len(panel_info.voters) >= config_votes_needed:
+                            await reaction.message.edit(content=config_reply_need_more_votes.format(config_votes_needed-len(panel_info.voters), motion))
+                            await panel_info.vote_passed(reaction.message.channel, motion)
+                            await panel_info.power_action(motion)
+                        else:
+                            await reaction.message.edit(content=config_reply_need_more_votes.format(config_votes_needed-len(panel_info.voters), motion))
+                    
+
 @bot.command()
 async def help(ctx):
     embed = embed = discord.Embed(title="Bot Help", color=config_embed_color)
@@ -79,8 +102,9 @@ async def status(ctx):
                 embed.add_field(name="CPU", value=cpu, inline=True)
                 embed.add_field(name="RAM", value=ram, inline=True)
             if mcstatus_info.server_power_status == "online":
-                fake_file = BytesIO(mcstatus_info.decoded_favicon)
-                file = discord.File(fake_file, "icon.png")
+                if mcstatus_info.decoded_favicon is not None:
+                    fake_file = BytesIO(mcstatus_info.decoded_favicon)
+                    file = discord.File(fake_file, "icon.png")
                 current, max = await mcstatus_info.get_players_and_max()
                 full_value = "{0}/{1} Players".format(current, max)
                 if current > 0:

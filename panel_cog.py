@@ -20,6 +20,7 @@ class panel_cog(commands.Cog):
         self.server_power_status = "offline"
         self.current_vote_action = None
         self.voters = []
+        self.votable_messages = []
         self.voting_time_start = 0
         self.was_empty_last_check = False
         self.logger = logging.getLogger("tonymc.panel_cog")
@@ -121,8 +122,7 @@ class panel_cog(commands.Cog):
         """Vote to turn off the server."""
         if ctx.invoked_subcommand is None:
             if ctx.message.author.id in config_admin_users:
-                self.logger.info("{0} ({1}) admin'd server off.".format(
-                    ctx.message.author.name, ctx.message.author.id))
+                self.logger.info("{0} admin'd server off.".format(str(ctx.message.author)))
                 await self.power_action("stop")
                 await ctx.message.add_reaction("👍")
             else:
@@ -134,8 +134,7 @@ class panel_cog(commands.Cog):
         """Vote to turn on the server."""
         if ctx.invoked_subcommand is None:
             if ctx.message.author.id in config_admin_users:
-                self.logger.info("{0} ({1}) admin'd server on.".format(
-                    ctx.message.author.name, ctx.message.author.id))
+                self.logger.info("{0} admin'd server on.".format(str(ctx.message.author)))
                 await self.power_action("start")
                 await ctx.message.add_reaction("👍")
             else:
@@ -167,8 +166,7 @@ class panel_cog(commands.Cog):
     async def server_restart(self, ctx):
         """Vote to restart the server."""
         if ctx.message.author.id in config_admin_users:
-            self.logger.info("{0} ({1}) admin'd server reboot.".format(
-                ctx.message.author.name, ctx.message.author.id))
+            self.logger.info("{0} admin'd server reboot.".format(str(ctx.message.author)))
             await self.power_action("restart")
             await ctx.message.add_reaction("👍")
         else:
@@ -206,7 +204,7 @@ class panel_cog(commands.Cog):
             else:
                 await ctx.message.add_reaction("❌")
 
-    async def vote_passed(self, ctx, motion):
+    async def vote_passed(self, channel, motion):
         voters_string = ""
         count = 0
         num_of_voters = len(self.voters)
@@ -222,7 +220,7 @@ class panel_cog(commands.Cog):
                 voters_string += ", "
         
         self.logger.info("Motion Passed: {0} - Voters: {1}".format(motion, voters_string))
-        await ctx.send('Motion "{0}" passed!'.format(motion))
+        await channel.send(config_reply_motion_pass.format(motion))
         await self.clear_voting()
 
     async def voting(self, ctx, motion):
@@ -231,29 +229,38 @@ class panel_cog(commands.Cog):
             self.current_vote_action = motion
             self.voters.append(ctx.message.author.id)
             if config_votes_needed <= 1:
-                await self.vote_passed(ctx, motion)
+                await self.vote_passed(ctx.message.channel, motion)
                 return True
             else:
-                await ctx.send('You need **{0}** more people to type the same command!'.format(config_votes_needed-len(self.voters)))
+                tempMessage = None
+                tempMessage = await ctx.send(config_reply_need_more_votes.format(config_votes_needed-len(self.voters), self.current_vote_action))
+                await tempMessage.add_reaction("👍")
+                self.votable_messages.append(tempMessage.id)
                 return False
         else:
+            if ctx.message.author.id not in self.voters:
+                self.voters.append(ctx.message.author.id)
+            else:
+                await ctx.send(config_reply_already_voted)
+                return False
+            
             if motion != self.current_vote_action:
-                await ctx.send('This motion does not match the current motion. Please wait for the previous motion to expire, or vote for that.')
+                await ctx.send(config_reply_conflicting_motion)
                 return False
             else:
-                if ctx.message.author.id not in self.voters:
-                    self.voters.append(ctx.message.author.id)
-                    if len(self.voters) >= config_votes_needed:
-                        await self.vote_passed(ctx, motion)
-                        return True
-                    else:
-                        await ctx.send('You need **{0}** more people to type the same command!'.format(config_votes_needed-len(self.voters)))
-                        return False
+                if len(self.voters) >= config_votes_needed:
+                    await self.vote_passed(ctx.message.channel, motion)
+                    return True
                 else:
-                    await ctx.send('You have already voted on the current motion! Please wait for the current motion to expire or pass.')
+                    tempMessage = None
+                    tempMessage = await ctx.send(config_reply_need_more_votes.format(config_votes_needed-len(self.voters), self.current_vote_action))
+                    await tempMessage.add_reaction("👍")
+                    self.votable_messages.append(tempMessage.id)
                     return False
+                    
 
     async def clear_voting(self):
         self.voting_time_start = 0
         self.current_vote_action = None
         self.voters.clear()
+        self.votable_messages.clear()

@@ -16,6 +16,7 @@ class mcstatus_cog(commands.Cog):
         self.mc_server = MinecraftServer(config_ip, config_port)
         self.server_status = None
         self.favicon = None
+        self.decoded_favicon = None
         # possible: offline, whitelist (prob not), online
         self.server_power_status = "offline"
         self.periodically_get_status.add_exception_type(ConnectionError)
@@ -50,13 +51,16 @@ class mcstatus_cog(commands.Cog):
             self.server_power_status = "offline"
         else:
             self.logger.debug("Server was on! Populating variables.")
-            base_favicon = self.server_status.favicon
-            # Add correct padding to favicon, otherwise the base64 library refuses to decode it.
-            # https://stackoverflow.com/a/2942039
-            base_favicon += "=" * ((4 - len(base_favicon) % 4) % 4)
-            # Additionally, it doesn't seem to remove the type header, causing a corrupted image to be created.
-            base_favicon = base_favicon.replace("data:image/png;base64,", "")
-            self.decoded_favicon = base64.b64decode(base_favicon)
+            if self.server_status.favicon is not None:
+                base_favicon = self.server_status.favicon
+                # Add correct padding to favicon, otherwise the base64 library refuses to decode it.
+                # https://stackoverflow.com/a/2942039
+                base_favicon += "=" * ((4 - len(base_favicon) % 4) % 4)
+                # Additionally, it doesn't seem to remove the type header, causing a corrupted image to be created.
+                base_favicon = base_favicon.replace("data:image/png;base64,", "")
+                self.decoded_favicon = base64.b64decode(base_favicon)
+            else:
+                self.decoded_favicon = None
             self.server_power_status = "online"
         self.logger.debug("Updating presence")
         await self.change_discord_status()
