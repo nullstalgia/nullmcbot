@@ -79,7 +79,9 @@ async def help(ctx):
     embed.add_field(name="How voting works", value="When someone types in a command (e.g. `{0}restart` or `{0}on`), it will start a vote for **{1}** seconds. If in that time a total of **{2}** people type the same command, it will do that action!".format(config_command_prefix, config_vote_timeout, config_votes_needed), inline=False)
     if config_shutdown_empty_server:
         embed.add_field(name="Auto shutdown", value="This bot checks every so often to see if the server is empty. If it is, it will be automatically shut down.", inline=False)
-    embed.set_footer(text="config")
+    if config_bot_source_code.strip() != "":
+        embed.add_field(name="Source Code", value=config_bot_source_code, inline=False)
+    embed.set_footer(text=config_custom_footer)
     await ctx.send(embed=embed)
 
 
