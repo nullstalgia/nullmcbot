@@ -81,7 +81,8 @@ async def help(ctx):
         embed.add_field(name="Auto shutdown", value="This bot checks every so often to see if the server is empty. If it is, it will be automatically shut down.", inline=False)
     if config_bot_source_code.strip() != "":
         embed.add_field(name="Source Code", value=config_bot_source_code, inline=False)
-    embed.set_footer(text=config_custom_footer)
+    #embed.set_footer(text=config_custom_footer)
+    embed.add_field(name="Server Info", value=config_custom_footer, inline=False)
     await ctx.send(embed=embed)
 
 
@@ -100,7 +101,7 @@ async def status(ctx):
             if panel_info.server_power_status == "online":
                 cpu, ram = await panel_info.get_cpu_and_ram()
                 cpu = "{0}%".format(cpu)
-                ram = "{0}MB".format(ram)
+                ram = "{0}GB".format(ram)
                 embed.add_field(name="CPU", value=cpu, inline=True)
                 embed.add_field(name="RAM", value=ram, inline=True)
             if mcstatus_info.server_power_status == "online":
@@ -133,8 +134,7 @@ async def status(ctx):
         file = discord.File(filepath, "icon.png")
     
     embed.set_thumbnail(url="attachment://icon.png")
-    embed.set_footer(
-        text=config_custom_footer)
+    embed.add_field(name="Server Info", value=config_custom_footer, inline=False)
     # await self.bot.say(embed=embed)
 
     response = await ctx.send(file=file, embed=embed)
